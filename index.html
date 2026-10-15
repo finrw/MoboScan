@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MoboScan</title>
+<title>Scan barang</title>
 <style>
   *{box-sizing:border-box}
   body{margin:0;font-family:system-ui,sans-serif;background:#f2f3f5;color:#1c1e21}
@@ -13,6 +13,8 @@
   input,select,textarea,button{width:100%;font:inherit;padding:11px;border:1px solid #c5c8cd;border-radius:8px;background:#fff}
   .cam{background:#000;border-radius:8px;overflow:hidden;position:relative;min-height:60px}
   #reader{width:100%}
+  #flash{position:absolute;inset:0;background:rgba(76,217,100,.55);opacity:0;pointer-events:none;transition:opacity .45s}
+  #flash.on{opacity:1;transition:none}
   #vid{width:100%;height:auto;display:none}
   #box{position:absolute;left:10%;top:41%;width:80%;height:18%;border:2px solid #4cd964;display:none;pointer-events:none}
   .tabs{display:flex;gap:8px;margin-bottom:8px}
@@ -41,6 +43,7 @@
     <div id="reader"></div>
     <video id="vid" playsinline muted></video>
     <div id="box"></div>
+    <div id="flash"></div>
   </div>
   <div class="row" style="margin-top:8px">
     <button id="again" type="button">Scan ulang</button>
@@ -175,10 +178,31 @@ $('tBc').onclick = startBarcode;
 $('tTx').onclick = startText;
 $('again').onclick = startBarcode;
 
+// Beep + kilat hijau saat berhasil
+let ac = null;
+function unlockAudio() {
+  try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); if (ac.state === 'suspended') ac.resume(); } catch (e) {}
+}
+document.addEventListener('pointerdown', unlockAudio, { passive: true });
+function beep() {
+  try {
+    unlockAudio();
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = 'square'; o.frequency.value = 1800; g.gain.value = 0.15;
+    o.connect(g); g.connect(ac.destination);
+    o.start(); o.stop(ac.currentTime + 0.15);
+  } catch (e) {}
+}
+function flash() {
+  $('flash').classList.add('on');
+  setTimeout(() => $('flash').classList.remove('on'), 150);
+}
+
 // Barcode terbaca
 async function onCode(text) {
   const s = text.trim();
   $('serial').value = s;
+  beep(); flash();
   if (navigator.vibrate) navigator.vibrate(120);
   await stopAll();
   msg('Serial terbaca: ' + s);
@@ -238,7 +262,7 @@ $('shot').onclick = async () => {
     const { data } = await wk.recognize(cv);
     await wk.terminate();
     const t = data.text.trim().replace(/\s+/g, ' ');
-    if (t) { $('model').value = t; msg('Hasil: ' + t + ' (periksa, bisa diedit)'); }
+    if (t) { $('model').value = t; beep(); flash(); msg('Hasil: ' + t + ' (periksa, bisa diedit)'); }
     else msg('Teks tidak terbaca. Coba lagi atau ketik manual.', true);
   } catch (e) { msg('Gagal membaca teks. Ketik manual.', true); }
 };
@@ -272,3 +296,4 @@ $('tanggal').value = today(); paint(); startBarcode();
 </script>
 </body>
 </html>
+
