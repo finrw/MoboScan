@@ -1,0 +1,995 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f1115" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Mobo Scan New</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📦</text></svg>" />
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f1115;
+      --surface: #1a1d24;
+      --line: #2a2f3a;
+      --ink: #f0f2f5;
+      --muted: #9aa3b2;
+      --accent: #3b82f6;
+      --ok: #22c55e;
+      --out: #ef4444;
+      --warn: #f59e0b;
+      --rma: #a855f7;
+      --kanibal: #f97316;
+      --balik: #06b6d4;
+      --radius: 14px;
+      --safe-b: env(safe-area-inset-bottom, 0px);
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      line-height: 1.4;
+      overscroll-behavior: none;
+    }
+    .app {
+      max-width: 480px;
+      margin: 0 auto;
+      min-height: 100%;
+      padding: 12px 14px calc(72px + var(--safe-b));
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 4px 0;
+    }
+    header h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin: 0;
+      letter-spacing: -0.02em;
+    }
+    .badge {
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      color: var(--muted);
+    }
+    .badge.on { color: var(--ok); border-color: #166534; }
+
+    /* Tabs */
+    .tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      background: var(--surface);
+      padding: 4px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+    }
+    .tabs button {
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      font: inherit;
+      font-weight: 600;
+      font-size: 0.9rem;
+      padding: 10px;
+      border-radius: 9px;
+      cursor: pointer;
+    }
+    .tabs button.on {
+      background: var(--ink);
+      color: var(--bg);
+    }
+
+    /* Camera */
+    .cam-wrap {
+      position: relative;
+      background: #000;
+      border-radius: var(--radius);
+      overflow: hidden;
+      aspect-ratio: 4/3;
+      border: 1px solid var(--line);
+    }
+    #reader, #vid {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    #vid { display: none; }
+    .scan-box {
+      position: absolute;
+      left: 8%;
+      top: 38%;
+      width: 84%;
+      height: 22%;
+      border: 2px solid #4ade80;
+      border-radius: 8px;
+      pointer-events: none;
+      box-shadow: 0 0 0 9999px rgba(0,0,0,0.35);
+      display: none;
+    }
+    .cam-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .cam-actions button {
+      flex: 1;
+      min-width: 90px;
+    }
+
+    /* Form */
+    label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--muted);
+      margin: 10px 0 4px;
+    }
+    input, select, textarea, button {
+      font: inherit;
+      color: var(--ink);
+    }
+    input, select, textarea {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: var(--surface);
+      outline: none;
+    }
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--accent);
+    }
+    select { font-weight: 700; appearance: none; }
+    textarea { min-height: 72px; resize: vertical; }
+    .row { display: flex; gap: 8px; }
+    .row > * { flex: 1; }
+
+    button {
+      border: 1px solid var(--line);
+      background: var(--surface);
+      padding: 12px 14px;
+      border-radius: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    button:active { opacity: 0.75; }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    button.primary {
+      background: var(--ink);
+      color: var(--bg);
+      border-color: var(--ink);
+    }
+    button.ghost { background: transparent; }
+
+    /* Status colors */
+    select#status option[value="IN"] { background: #166534; color: #fff; }
+    select#status option[value="OUT"] { background: #991b1b; color: #fff; }
+    select#status option[value="OK"] { background: #1d4ed8; color: #fff; }
+    select#status option[value="KANIBAL"] { background: #c2410c; color: #fff; }
+    select#status option[value="BALIK RUSAK"] { background: #0e7490; color: #fff; }
+    select#status option[value="RMA"] { background: #7e22ce; color: #fff; }
+
+    /* Message */
+    #msg {
+      min-height: 22px;
+      font-size: 0.875rem;
+      font-weight: 500;
+      margin-top: 4px;
+    }
+    #msg.ok { color: var(--ok); }
+    #msg.err { color: var(--out); }
+
+    /* Info card */
+    .info {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 0.85rem;
+      color: var(--muted);
+      display: none;
+    }
+    .info.show { display: block; }
+
+    /* Settings panel */
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 14px;
+    }
+    .panel h2 {
+      margin: 0 0 10px;
+      font-size: 1rem;
+    }
+    .hint {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin: 6px 0 12px;
+    }
+
+    /* Bottom nav */
+    nav.dock {
+      position: fixed;
+      left: 0; right: 0; bottom: 0;
+      background: var(--surface);
+      border-top: 1px solid var(--line);
+      padding-bottom: var(--safe-b);
+      z-index: 50;
+    }
+    nav.dock .inner {
+      max-width: 480px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+    }
+    nav.dock button {
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 10px 4px 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      border-radius: 0;
+    }
+    nav.dock button.on { color: var(--ink); }
+    nav.dock svg { width: 22px; height: 22px; }
+
+    /* Zoom / contrast */
+    .slider-row {
+      display: none;
+      margin-top: 8px;
+    }
+    .slider-row label {
+      margin: 0 0 4px;
+      font-size: 0.75rem;
+    }
+    input[type="range"] {
+      padding: 0;
+      height: 28px;
+      accent-color: var(--accent);
+    }
+
+    /* Force dialog */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.55);
+      display: none;
+      align-items: flex-end;
+      justify-content: center;
+      z-index: 100;
+      padding: 16px;
+    }
+    .overlay.show { display: flex; }
+    .dialog {
+      background: var(--surface);
+      border-radius: 18px;
+      padding: 18px;
+      width: 100%;
+      max-width: 400px;
+      border: 1px solid var(--line);
+    }
+    .dialog h3 { margin: 0 0 8px; font-size: 1.05rem; }
+    .dialog p { margin: 0 0 16px; color: var(--muted); font-size: 0.9rem; }
+    .dialog .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+    .view { display: none; }
+    .view.on { display: block; }
+
+    /* Data list */
+    .item {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 8px;
+    }
+    .item .top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+    .item .serial { font-weight: 700; font-size: 0.95rem; }
+    .st {
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 999px;
+      color: #fff;
+    }
+    .st-IN { background: #166534; }
+    .st-OUT { background: #991b1b; }
+    .st-OK { background: #1d4ed8; }
+    .st-KANIBAL { background: #c2410c; }
+    .st-BALIK { background: #0e7490; }
+    .st-RMA { background: #7e22ce; }
+    .item .meta {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>Mobo Scan</h1>
+      <span class="badge" id="connBadge">Spreadsheet off</span>
+    </header>
+
+    <!-- SCAN VIEW -->
+    <div class="view on" id="view-scan">
+      <div class="tabs">
+        <button type="button" id="tabBc" class="on">Barcode</button>
+        <button type="button" id="tabTx">Teks model</button>
+      </div>
+
+      <div class="cam-wrap">
+        <div id="reader"></div>
+        <video id="vid" playsinline muted></video>
+        <div class="scan-box" id="box"></div>
+      </div>
+
+      <div class="cam-actions">
+        <button type="button" id="btnAgain">Scan ulang</button>
+        <button type="button" id="btnShot" style="display:none">Ambil & baca teks</button>
+        <button type="button" id="btnTorch" style="display:none">Senter: mati</button>
+      </div>
+
+      <div class="slider-row" id="zoomWrap">
+        <label for="zoom">Zoom</label>
+        <input type="range" id="zoom" />
+      </div>
+      <div class="slider-row" id="conWrap" style="display:none">
+        <label for="con">Kontras teks</label>
+        <input type="range" id="con" min="1" max="3" step="0.1" value="1.4" />
+      </div>
+
+      <label for="tanggal">Tanggal</label>
+      <input type="date" id="tanggal" />
+
+      <label for="serial">Serial (Code 128)</label>
+      <input id="serial" placeholder="Scan atau ketik serial" autocomplete="off" autocapitalize="characters" />
+
+      <label for="model">Model</label>
+      <input id="model" placeholder="Hasil baca teks / ketik manual" autocomplete="off" />
+
+      <label for="status">Status</label>
+      <select id="status">
+        <option value="IN">IN</option>
+        <option value="OUT">OUT</option>
+        <option value="OK">OK</option>
+        <option value="KANIBAL">KANIBAL</option>
+        <option value="BALIK RUSAK">BALIK RUSAK</option>
+        <option value="RMA">RMA</option>
+      </select>
+
+      <div class="row">
+        <div>
+          <label for="tglOut">Tanggal Out</label>
+          <input type="date" id="tglOut" />
+        </div>
+        <div>
+          <label for="tglKembali">Tanggal Kembali</label>
+          <input type="date" id="tglKembali" />
+        </div>
+      </div>
+
+      <label for="ket">Keterangan</label>
+      <textarea id="ket" placeholder="Opsional"></textarea>
+
+      <div class="info" id="info"></div>
+
+      <button type="button" class="primary" id="btnSave" style="margin-top:14px;width:100%">Simpan ke Spreadsheet</button>
+      <div id="msg"></div>
+    </div>
+
+    <!-- DATA VIEW -->
+    <div class="view" id="view-data">
+      <div class="panel">
+        <h2>Data di perangkat</h2>
+        <p class="hint">Salinan lokal (bukan live dari sheet). Data terbaru yang pernah di-scan/simpan di HP ini.</p>
+        <div id="list"></div>
+        <button type="button" class="ghost" id="btnClearLocal" style="width:100%;margin-top:8px;color:var(--out)">Hapus salinan lokal</button>
+      </div>
+    </div>
+
+    <!-- ATUR VIEW -->
+    <div class="view" id="view-atur">
+      <div class="panel">
+        <h2>URL Web App Spreadsheet</h2>
+        <p class="hint">
+          Deploy Apps Script sebagai Web App → Execute as <b>Me</b>, akses <b>Anyone</b>.
+          Tempel URL yang berakhiran <code>/exec</code>.
+        </p>
+        <input id="execUrl" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off" spellcheck="false" />
+        <div class="row" style="margin-top:10px">
+          <button type="button" class="primary" id="btnSaveUrl">Simpan URL</button>
+          <button type="button" id="btnTestUrl">Coba sambungan</button>
+        </div>
+        <p class="hint" style="margin-top:14px">
+          Kode <code>Code.gs</code> kamu <b>tidak perlu diubah</b>. Aplikasi ini langsung memanggil doGet / doPost.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <nav class="dock">
+    <div class="inner">
+      <button type="button" class="on" data-view="scan">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" y1="12" x2="17" y2="12"/></svg>
+        Scan
+      </button>
+      <button type="button" data-view="data">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/></svg>
+        Data
+      </button>
+      <button type="button" data-view="atur">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+        Atur
+      </button>
+    </div>
+  </nav>
+
+  <div class="overlay" id="forceOverlay">
+    <div class="dialog">
+      <h3 id="forceTitle">Konfirmasi</h3>
+      <p id="forceMsg">Tetap simpan sebagai OUT?</p>
+      <div class="actions">
+        <button type="button" id="forceCancel">Batal</button>
+        <button type="button" class="primary" id="forceOk">Tetap simpan</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+(function () {
+  "use strict";
+
+  const $ = (id) => document.getElementById(id);
+  const STORAGE_KEY = "mobo-scan-v1";
+  const COL = {
+    IN: ["#166534", "#fff"],
+    OUT: ["#991b1b", "#fff"],
+    OK: ["#1d4ed8", "#fff"],
+    KANIBAL: ["#c2410c", "#fff"],
+    "BALIK RUSAK": ["#0e7490", "#fff"],
+    RMA: ["#7e22ce", "#fff"],
+  };
+
+  let state = {
+    execUrl: "",
+    items: {}, // serial -> record
+  };
+  let mode = "barcode"; // barcode | text
+  let qr = null;
+  let stream = null;
+  let torchOn = false;
+  let cur = null; // data from sheet
+  let forcePayload = null;
+
+  // ---------- storage ----------
+  function load() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) state = { ...state, ...JSON.parse(raw) };
+    } catch (_) {}
+    $("execUrl").value = state.execUrl || "";
+    updateBadge();
+    renderList();
+  }
+  function saveState() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    updateBadge();
+  }
+  function updateBadge() {
+    const b = $("connBadge");
+    if (state.execUrl) {
+      b.textContent = "Spreadsheet aktif";
+      b.classList.add("on");
+    } else {
+      b.textContent = "Spreadsheet off";
+      b.classList.remove("on");
+    }
+  }
+
+  // ---------- helpers ----------
+  const today = () => new Date().toLocaleDateString("sv-SE");
+  function msg(t, err) {
+    const el = $("msg");
+    el.textContent = t || "";
+    el.className = err ? "err" : "ok";
+  }
+  function paintStatus() {
+    const s = $("status").value;
+    const c = COL[s] || ["#1a1d24", "#f0f2f5"];
+    $("status").style.background = c[0];
+    $("status").style.color = c[1];
+  }
+  function beep() {
+    try {
+      const ctx = new AudioContext();
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.frequency.value = 880;
+      g.gain.value = 0.05;
+      o.connect(g);
+      g.connect(ctx.destination);
+      o.start();
+      o.stop(ctx.currentTime + 0.07);
+      o.onended = () => ctx.close();
+    } catch (_) {}
+  }
+
+  // ---------- camera / barcode ----------
+  function track() {
+    const v = stream ? $("vid") : document.querySelector("#reader video");
+    return v && v.srcObject ? v.srcObject.getVideoTracks()[0] : null;
+  }
+
+  function initControls() {
+    setTimeout(() => {
+      const t = track();
+      const caps = t && t.getCapabilities ? t.getCapabilities() : {};
+      torchOn = false;
+      $("btnTorch").textContent = "Senter: mati";
+      $("btnTorch").style.display = caps.torch ? "" : "none";
+      if (caps.zoom) {
+        $("zoom").min = caps.zoom.min;
+        $("zoom").max = caps.zoom.max;
+        $("zoom").step = caps.zoom.step || 0.1;
+        $("zoom").value = (t.getSettings().zoom) || caps.zoom.min;
+        $("zoomWrap").style.display = "block";
+      } else {
+        $("zoomWrap").style.display = "none";
+      }
+    }, 700);
+  }
+
+  async function stopAll() {
+    torchOn = false;
+    $("btnTorch").style.display = "none";
+    $("zoomWrap").style.display = "none";
+    if (qr) {
+      try { await qr.stop(); } catch (_) {}
+      try { qr.clear(); } catch (_) {}
+      qr = null;
+    }
+    if (stream) {
+      stream.getTracks().forEach((t) => t.stop());
+      stream = null;
+    }
+    $("vid").srcObject = null;
+    $("vid").style.display = "none";
+    $("reader").style.display = "";
+    $("box").style.display = "none";
+  }
+
+  async function startBarcode() {
+    await stopAll();
+    mode = "barcode";
+    $("tabBc").classList.add("on");
+    $("tabTx").classList.remove("on");
+    $("btnShot").style.display = "none";
+    $("conWrap").style.display = "none";
+    $("reader").style.display = "";
+    msg("");
+
+    try {
+      qr = new Html5Qrcode("reader");
+      await qr.start(
+        { facingMode: "environment" },
+        {
+          fps: 12,
+          qrbox: { width: 280, height: 100 },
+          aspectRatio: 1.333,
+          formatsToSupport: [Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.CODE_39, Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.QR_CODE],
+        },
+        (decoded) => {
+          if (!decoded) return;
+          $("serial").value = decoded.trim();
+          beep();
+          msg("Serial terbaca: " + decoded.trim());
+          lookupSerial(decoded.trim());
+          // pause after success
+          try { qr.pause(true); } catch (_) {}
+        },
+        () => {}
+      );
+      initControls();
+    } catch (e) {
+      msg("Kamera gagal: " + (e.message || e) + ". Ketik serial manual.", true);
+    }
+  }
+
+  async function startTextMode() {
+    await stopAll();
+    mode = "text";
+    $("tabTx").classList.add("on");
+    $("tabBc").classList.remove("on");
+    $("btnShot").style.display = "";
+    $("conWrap").style.display = "block";
+    $("reader").style.display = "none";
+    $("vid").style.display = "block";
+    $("box").style.display = "block";
+    msg("Arahkan ke teks model, lalu tekan Ambil & baca teks");
+
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+        },
+        audio: false,
+      });
+      $("vid").srcObject = stream;
+      await $("vid").play();
+      initControls();
+    } catch (e) {
+      msg("Kamera gagal: " + (e.message || e), true);
+    }
+  }
+
+  $("zoom").oninput = () => {
+    const t = track();
+    if (!t) return;
+    t.applyConstraints({ advanced: [{ zoom: +$("zoom").value }] }).catch(() => {});
+  };
+
+  $("btnTorch").onclick = async () => {
+    const t = track();
+    if (!t) return;
+    try {
+      torchOn = !torchOn;
+      await t.applyConstraints({ advanced: [{ torch: torchOn }] });
+      $("btnTorch").textContent = "Senter: " + (torchOn ? "nyala" : "mati");
+    } catch (_) {
+      torchOn = !torchOn;
+      msg("Senter tidak didukung di perangkat ini.", true);
+    }
+  };
+
+  $("btnAgain").onclick = () => {
+    if (mode === "barcode") startBarcode();
+    else startTextMode();
+  };
+
+  $("tabBc").onclick = () => startBarcode();
+  $("tabTx").onclick = () => startTextMode();
+
+  // ---------- OCR ----------
+  $("btnShot").onclick = async () => {
+    const v = $("vid");
+    if (!v.videoWidth) return msg("Kamera belum siap.", true);
+    msg("Membaca teks...");
+    $("btnShot").disabled = true;
+
+    const vw = v.videoWidth;
+    const vh = v.videoHeight;
+    // crop center box (same ratio as scan-box)
+    const sx = Math.floor(vw * 0.08);
+    const sy = Math.floor(vh * 0.38);
+    const sw = Math.floor(vw * 0.84);
+    const sh = Math.floor(vh * 0.22);
+
+    const cv = document.createElement("canvas");
+    cv.width = sw;
+    cv.height = Math.max(sh, 120);
+    const ctx = cv.getContext("2d", { willReadFrequently: true });
+    ctx.drawImage(v, sx, sy, sw, sh, 0, 0, cv.width, cv.height);
+
+    // preprocess: grayscale + contrast stretch + optional invert
+    const im = ctx.getImageData(0, 0, cv.width, cv.height);
+    const p = im.data;
+    const n = p.length / 4;
+    const hist = new Array(256).fill(0);
+    for (let i = 0; i < p.length; i += 4) {
+      const g = Math.round(0.299 * p[i] + 0.587 * p[i + 1] + 0.114 * p[i + 2]);
+      p[i] = g;
+      hist[g]++;
+    }
+    let lo = 0, hi = 255, acc = 0;
+    for (let k = 0; k < 256; k++) {
+      acc += hist[k];
+      if (acc >= n * 0.02) { lo = k; break; }
+    }
+    acc = 0;
+    for (let k = 255; k >= 0; k--) {
+      acc += hist[k];
+      if (acc >= n * 0.02) { hi = k; break; }
+    }
+    if (hi - lo < 20) hi = lo + 20;
+    const kon = +$("con").value;
+    let sum = 0;
+    for (let i = 0; i < p.length; i += 4) {
+      let g = ((p[i] - lo) / (hi - lo)) * 255;
+      g = (g - 128) * kon + 128;
+      g = Math.max(0, Math.min(255, g));
+      p[i] = g;
+      sum += g;
+    }
+    const inv = sum / n < 128;
+    for (let i = 0; i < p.length; i += 4) {
+      const g = inv ? 255 - p[i] : p[i];
+      p[i] = p[i + 1] = p[i + 2] = g;
+    }
+    ctx.putImageData(im, 0, 0);
+
+    try {
+      const worker = await Tesseract.createWorker("eng");
+      await worker.setParameters({
+        tessedit_pageseg_mode: "7",
+        tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-/ .#_+",
+      });
+      const { data } = await worker.recognize(cv);
+      await worker.terminate();
+      const t = (data.text || "").trim().replace(/\s+/g, " ");
+      if (t && t.length >= 2) {
+        $("model").value = t;
+        msg("Hasil: " + t + " (bisa diedit)");
+        beep();
+      } else {
+        msg("Teks tidak terbaca. Coba naikkan kontras / dekatkan / ketik manual.", true);
+      }
+    } catch (e) {
+      msg("Gagal membaca teks. Ketik manual.", true);
+    }
+    $("btnShot").disabled = false;
+  };
+
+  // ---------- GAS ----------
+  async function gasGet(serial) {
+    const base = state.execUrl.trim();
+    if (!base) throw new Error("URL Web App belum diisi (tab Atur).");
+    const url = new URL(base);
+    url.searchParams.set("serial", serial);
+    const res = await fetch(url.toString(), { method: "GET", redirect: "follow" });
+    const text = await res.text();
+    const cleaned = text.trim().replace(/^\)\]\}',?/, "");
+    if (cleaned.startsWith("<!DOCTYPE") || cleaned.startsWith("<html")) {
+      throw new Error("Web App menolak. Deploy ulang: Execute as Me, akses Anyone.");
+    }
+    return JSON.parse(cleaned);
+  }
+
+  async function gasPost(body) {
+    const base = state.execUrl.trim();
+    if (!base) throw new Error("URL Web App belum diisi (tab Atur).");
+    const res = await fetch(base, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(body),
+      redirect: "follow",
+    });
+    const text = await res.text();
+    const cleaned = text.trim().replace(/^\)\]\}',?/, "");
+    if (cleaned.startsWith("<!DOCTYPE") || cleaned.startsWith("<html")) {
+      throw new Error("Web App menolak. Deploy ulang: Execute as Me, akses Anyone.");
+    }
+    return JSON.parse(cleaned);
+  }
+
+  async function lookupSerial(serial) {
+    if (!state.execUrl || !serial) return;
+    try {
+      const r = await gasGet(serial);
+      if (r.ok && r.found && r.data) {
+        cur = r.data;
+        $("model").value = r.data.model || $("model").value;
+        $("status").value = r.data.status || "IN";
+        $("ket").value = r.data.keterangan || "";
+        $("tglOut").value = r.data.tglOut || "";
+        $("tglKembali").value = r.data.tglKembali || "";
+        paintStatus();
+        $("info").textContent = `Ditemukan: ${r.data.status} · Model: ${r.data.model || "-"} · Out: ${r.data.tglOut || "-"}`;
+        $("info").classList.add("show");
+      } else {
+        cur = null;
+        $("info").textContent = "Serial belum terdaftar di Spreadsheet.";
+        $("info").classList.add("show");
+      }
+    } catch (e) {
+      $("info").textContent = "Gagal cek sheet: " + e.message;
+      $("info").classList.add("show");
+    }
+  }
+
+  $("serial").addEventListener("change", () => {
+    const s = $("serial").value.trim();
+    if (s) lookupSerial(s);
+  });
+
+  $("status").addEventListener("change", () => {
+    paintStatus();
+    const s = $("status").value;
+    if (s === "OUT") {
+      if (!$("tglOut").value) $("tglOut").value = today();
+      $("tglKembali").value = "";
+    }
+    if (s === "IN" && cur && cur.status === "OUT" && !$("tglKembali").value) {
+      $("tglKembali").value = today();
+    }
+  });
+
+  // ---------- save ----------
+  async function doSave(force) {
+    const serial = $("serial").value.trim();
+    if (!serial) return msg("Serial belum diisi.", true);
+    if (!state.execUrl) return msg("Isi URL Web App dulu di tab Atur.", true);
+
+    $("btnSave").disabled = true;
+    msg("Menyimpan...");
+
+    const body = {
+      tanggal: $("tanggal").value || today(),
+      serial,
+      model: $("model").value.trim(),
+      status: $("status").value,
+      keterangan: $("ket").value.trim(),
+      tglOut: $("tglOut").value,
+      tglKembali: $("tglKembali").value,
+      force: !!force,
+    };
+
+    try {
+      const r = await gasPost(body);
+      if (!r.ok && (r.code === "NOT_FOUND" || r.code === "ALREADY_OUT")) {
+        $("btnSave").disabled = false;
+        forcePayload = body;
+        $("forceTitle").textContent = r.error || "Konfirmasi";
+        $("forceMsg").textContent = "Tetap simpan sebagai OUT?";
+        $("forceOverlay").classList.add("show");
+        return;
+      }
+      if (!r.ok) throw new Error(r.error || "Gagal");
+
+      // cache locally
+      state.items[serial] = {
+        ...body,
+        updatedAt: new Date().toISOString(),
+      };
+      saveState();
+      renderList();
+
+      msg(r.updated ? "Data diperbarui." : "Data tersimpan.");
+      ["serial", "model", "ket", "tglOut", "tglKembali"].forEach((k) => ($(k).value = ""));
+      cur = null;
+      $("info").classList.remove("show");
+      $("status").value = "IN";
+      paintStatus();
+      if (mode === "barcode") startBarcode();
+    } catch (e) {
+      msg("Gagal menyimpan: " + e.message, true);
+    }
+    $("btnSave").disabled = false;
+  }
+
+  $("btnSave").onclick = () => doSave(false);
+  $("forceCancel").onclick = () => {
+    $("forceOverlay").classList.remove("show");
+    forcePayload = null;
+    msg("Dibatalkan.");
+  };
+  $("forceOk").onclick = () => {
+    $("forceOverlay").classList.remove("show");
+    doSave(true);
+    forcePayload = null;
+  };
+
+  // ---------- settings ----------
+  $("btnSaveUrl").onclick = () => {
+    state.execUrl = $("execUrl").value.trim();
+    saveState();
+    msg(state.execUrl ? "URL disimpan di perangkat ini." : "URL dikosongkan.");
+  };
+
+  $("btnTestUrl").onclick = async () => {
+    const url = $("execUrl").value.trim();
+    if (!url) return msg("URL masih kosong.", true);
+    msg("Mencoba sambungan...");
+    try {
+      // temporary set
+      const prev = state.execUrl;
+      state.execUrl = url;
+      const r = await gasGet("__test__");
+      state.execUrl = prev;
+      if (r && typeof r.ok !== "undefined") {
+        msg("Sambungan OK. Silakan Simpan URL.");
+      } else {
+        msg("Balasan tidak dikenali.", true);
+      }
+    } catch (e) {
+      msg("Gagal: " + e.message, true);
+    }
+  };
+
+  // ---------- data list ----------
+  function renderList() {
+    const list = $("list");
+    const entries = Object.values(state.items || {}).sort((a, b) =>
+      (b.updatedAt || "").localeCompare(a.updatedAt || "")
+    );
+    if (!entries.length) {
+      list.innerHTML = '<p class="hint">Belum ada data lokal.</p>';
+      return;
+    }
+    list.innerHTML = entries
+      .slice(0, 50)
+      .map((it) => {
+        const stClass =
+          it.status === "BALIK RUSAK" ? "st-BALIK" : "st-" + (it.status || "IN");
+        return `<div class="item">
+          <div class="top">
+            <span class="serial">${escapeHtml(it.serial)}</span>
+            <span class="st ${stClass}">${escapeHtml(it.status || "")}</span>
+          </div>
+          <div class="meta">${escapeHtml(it.model || "-")} · ${escapeHtml(it.tanggal || "")}</div>
+        </div>`;
+      })
+      .join("");
+  }
+  function escapeHtml(s) {
+    return String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  $("btnClearLocal").onclick = () => {
+    if (confirm("Hapus semua salinan di perangkat ini? Spreadsheet tidak ikut terhapus.")) {
+      state.items = {};
+      saveState();
+      renderList();
+      msg("Salinan lokal dihapus.");
+    }
+  };
+
+  // ---------- navigation ----------
+  document.querySelectorAll("nav.dock button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const v = btn.dataset.view;
+      document.querySelectorAll(".view").forEach((el) => el.classList.remove("on"));
+      document.querySelectorAll("nav.dock button").forEach((b) => b.classList.remove("on"));
+      $("view-" + v).classList.add("on");
+      btn.classList.add("on");
+      if (v === "data") renderList();
+      if (v !== "scan") stopAll();
+      if (v === "scan" && mode === "barcode") startBarcode();
+    });
+  });
+
+  // ---------- boot ----------
+  $("tanggal").value = today();
+  paintStatus();
+  load();
+  startBarcode();
+})();
+  </script>
+</body>
+</html>
