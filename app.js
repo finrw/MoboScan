@@ -195,7 +195,7 @@ function fillFrom(d) {
   $('tglOut').value = d.tglOut || ''; $('tglKembali').value = d.tglKembali || ''; renderStatuses();
 }
 function setInfo(t, kind) { const i = $('info'); i.textContent = t || ''; i.className = 'small ' + (kind === 'err' ? 'err' : kind === 'ok' ? 'ok' : 'muted'); }
-function remember(item) { store.items = [item, ...store.items.filter(r => r.serial !== item.serial)].slice(0, 2000); persist(); updateCount(); }
+function remember(item) { store.items = [item, ...store.items.filter(r => r.serial !== item.serial)].slice(0, 4000); persist(); updateCount(); }
 const norm = d => Object.assign({}, d, { status: asStatus(d.status) });
 const newId = () => (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
 function totalsNow() {
