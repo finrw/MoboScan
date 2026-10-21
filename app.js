@@ -1,7 +1,7 @@
 'use strict';
 // ====== PENGATURAN ======
 // Isi URL Web App di sini, atau tempel lewat tab Atur (disimpan di HP).
-const DEFAULT_EXEC_URL = '';
+const DEFAULT_EXEC_URL = 'https://script.google.com/macros/s/AKfycbzrA2XqFWmV-zYYDoOwahEhrsn_Q5PSfuKvUheinJ3IxJcrkNgWJmW3-XPWhPrREVUOEg/exec';
 const STATUSES = ['IN', 'OUT', 'OK', 'KANIBAL', 'BALIK RUSAK', 'RMA'];
 const CDN_QR = 'https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js';
 const CDN_OCR = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
