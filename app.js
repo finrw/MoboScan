@@ -326,12 +326,23 @@ async function refocus() {
 const SCAN_PLAN = [
   ['n', 0, 1, false], ['z', 0, 1], ['n', 0, 1, true], ['z', .5, 1], ['z', .25, .75], ['z', 0, .5], ['n', .5, 1, true], ['n', .25, .75, true]
 ];
+// Cadangan: kalau barcode tidak terbaca, baca tulisan SN di bawahnya lewat AI (butuh URL Web App)
+async function snFallback(my, v) {
+  try {
+    const cv = grabBand(v, 0, 1); if (!cv) return null;
+    camText('Barcode sulit, membaca tulisan SN dengan AI...');
+    const img = toJpeg(prepareForVision(cv));
+    const r = await gas({ body: { action: 'ocr', mode: 'serial', image: img }, timeout: 40000 });
+    if (my !== camGen) return null;
+    return r && r.ok && r.text ? String(r.text).trim().toUpperCase() : null;
+  } catch (e) { return null; }
+}
 async function startBarcodeScan(my) {
   if (!(await openVideo(my))) return;
   const det = (await nativeCode128()) ? new BarcodeDetector({ formats: ['code_128'] }) : null;
   loadScript(CDN_ZX).catch(() => {});
   $('scanline').style.display = 'block'; camText('Mencari barcode... tahan HP stabil, jarak sekitar 10-15 cm.');
-  const t0 = Date.now(); let step = 0, lastFocus = t0, msgLevel = 0;
+  const t0 = Date.now(); let step = 0, lastFocus = t0, msgLevel = 0, ocrTries = 0;
   const tick = async () => {
     if (my !== camGen) return;
     const v = $('vid');
@@ -349,6 +360,17 @@ async function startBarcodeScan(my) {
       }
     } catch (e) {}
     const el = Date.now() - t0;
+    if (ocrTries < 3 && el > 5000 + ocrTries * 12000 && store.execUrl && !store.preferLocal) {
+      ocrTries++;
+      const sn = await snFallback(my, v);
+      if (my !== camGen) return;
+      if (sn && accept(sn)) {
+        $('scanline').style.display = 'none';
+        if (await ask('Serial dari tulisan: ' + sn + '. Pakai?')) { onCode(sn); return; }
+        ocrTries = 3; $('scanline').style.display = 'block';
+      }
+      camText('Mencari barcode... tahan HP stabil, jarak sekitar 10-15 cm.');
+    }
     if (Date.now() - lastFocus > 2500) { lastFocus = Date.now(); refocus(); }
     if (el > 8000 && msgLevel < 1) { msgLevel = 1; camText('Belum terbaca. Coba miringkan sedikit, matikan senter, atau jauhkan HP lalu dekatkan pelan-pelan.'); }
     if (el > 20000 && msgLevel < 2) { msgLevel = 2; camText('Masih sulit. Pakai tab Teks model untuk jepret tulisan SN, atau ketik manual.'); }
