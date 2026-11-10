@@ -366,8 +366,8 @@ async function startBarcodeScan(my) {
       if (my !== camGen) return;
       if (sn && accept(sn)) {
         $('scanline').style.display = 'none';
-        if (await ask('Serial dari tulisan: ' + sn + '. Pakai?')) { onCode(sn); return; }
-        ocrTries = 3; $('scanline').style.display = 'block';
+        onCode(sn);
+        return;
       }
       camText('Mencari barcode... tahan HP stabil, jarak sekitar 10-15 cm.');
     }
@@ -507,7 +507,18 @@ function resetForm() {
   S.status = 'IN'; S.cur = null; setInfo(''); $('alts').innerHTML = ''; $('preview').hidden = true; $('tanggal').value = today();
   renderStatuses(); S.armed = true; setMode('barcode');
 }
-function ask(text) { return new Promise(res => { $('dlgTitle').textContent = text; $('dlg').hidden = false; $('dlgYes').onclick = () => { $('dlg').hidden = true; res(true); }; $('dlgNo').onclick = () => { $('dlg').hidden = true; res(false); }; }); }
+function ask(text, sub) {
+  return new Promise(res => {
+    $('dlgTitle').textContent = text;
+    const m = $('dlgMsg');
+    if (sub) { m.textContent = sub; m.hidden = false; }
+    else { m.textContent = ''; m.hidden = true; }
+    $('dlgYes').textContent = sub ? 'Tetap simpan' : 'Ya';
+    $('dlg').hidden = false;
+    $('dlgYes').onclick = () => { $('dlg').hidden = true; res(true); };
+    $('dlgNo').onclick = () => { $('dlg').hidden = true; res(false); };
+  });
+}
 function queueAdd(body, prevStatus) {
   store.queue.push({ id: body.id, body });
   remember(applyLocal(prevStatus, body)); bump(prevStatus, body.status); persist(); renderQueue();
@@ -521,7 +532,8 @@ async function commit(body, prevStatus) {
       const r = await gas({ body });
       if (!r.ok && (r.code === 'NOT_FOUND' || r.code === 'ALREADY_OUT')) {
         msg(r.error, 'err');
-        if (await ask(r.error)) { body.force = true; continue; }
+        const sub = r.code === 'ALREADY_OUT' ? 'Tetap simpan sebagai OUT?' : (r.code === 'NOT_FOUND' ? 'Tetap simpan sebagai data baru?' : '');
+        if (await ask(r.error, sub)) { body.force = true; continue; }
         return 'cancel';
       }
       if (!r.ok) throw Object.assign(new Error(r.error || 'Gagal menyimpan.'), { logic: true });
