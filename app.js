@@ -506,14 +506,20 @@ async function readCanvas(src, blurry) {
   try {
     msg('Membaca teks di perangkat...');
     const l = await readLocal(src);
-    if (l.text && l.confidence >= 58) { applyReading(l.text, l.alts, 'local', 'Cocokkan hasil dengan stiker sebelum simpan.'); return; }
+    // Cocok persis dengan daftar model, atau yakin: tidak perlu AI (hemat kuota)
+    if (l.text && (l.confidence >= 58 || snapExact(l.text, catalogLines()))) { applyReading(l.text, l.alts, 'local', 'Cocokkan hasil dengan stiker sebelum simpan.'); return; }
     if (!store.preferLocal && store.execUrl) {
+      // Jika AI gagal (mis. 429), tetap pakai hasil baca perangkat supaya kotak model terisi
+      const aiFail = why => {
+        if (l.text) applyReading(l.text, l.alts, 'local', why + ' Dipakai hasil perangkat, cocokkan dengan stiker.');
+        else msg(why + ' Periksa foto atau ketik manual.', 'err');
+      };
       msg('Hasil belum cukup jelas. Mencoba pembacaan server...');
       try {
         const r = await gas({ body: { action: 'ocr', image: img }, timeout: 40000 });
         if (r.ok && (r.text || (r.alts && r.alts.length))) { applyReading(r.text, r.alts || [], 'ai', r.note); return; }
-        msg((r.ok ? 'AI tidak yakin' : r.error) + '. Periksa foto atau ketik manual.', 'err');
-      } catch (e) { msg((e.message || 'AI gagal') + '. Periksa foto atau ketik manual.', 'err'); }
+        aiFail((r.ok ? 'AI tidak yakin' : r.error) + '.');
+      } catch (e) { aiFail((e.message || 'AI gagal') + '.'); }
     } else applyReading(l.text, l.alts, 'local', 'Hasil kurang jelas; periksa dengan stiker.');
   } catch (e) { msg(e.message || 'Gagal membaca teks. Ketik manual.', 'err'); }
   finally { S.reading = false; $('shot').disabled = false; }
